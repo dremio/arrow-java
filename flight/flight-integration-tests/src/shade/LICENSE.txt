@@ -295,11 +295,11 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Protobuf 4.36.2 (protobuf-java and protobuf-java-util).
+This binary artifact contains Google Protobuf 3.25.5.
 
 Copyright: Copyright 2008 Google Inc.  All rights reserved.
 Home page: https://protobuf.dev/
-License: https://github.com/protocolbuffers/protobuf/blob/v36.2/LICENSE (BSD)
+License: https://github.com/protocolbuffers/protobuf/blob/v3.25.5/LICENSE (BSD)
 License text:
 
 | Copyright 2008 Google Inc.  All rights reserved.
