@@ -67,7 +67,7 @@ export ARROW_BUILD_TESTS
 export ARROW_DATASET
 : "${ARROW_GANDIVA:=ON}"
 export ARROW_GANDIVA
-: "${ARROW_ORC:=ON}"
+: "${ARROW_ORC:=OFF}"
 export ARROW_ORC
 : "${ARROW_PARQUET:=ON}"
 : "${ARROW_S3:=ON}"
@@ -125,7 +125,14 @@ if [ "${ARROW_RUN_TESTS:-}" == "ON" ]; then
   github_actions_group_end
 fi
 
-export JAVA_JNI_CMAKE_ARGS="-DProtobuf_ROOT=${build_dir}/cpp/protobuf_ep-install"
+# Don't set Protobuf_ROOT if it doesn't exist (when using bundled dependencies)
+# Instead, let CMake find the system protobuf
+if [ -d "${build_dir}/cpp/protobuf_ep-install" ]; then
+  export JAVA_JNI_CMAKE_ARGS="-DProtobuf_ROOT=${build_dir}/cpp/protobuf_ep-install"
+else
+  # Use system protobuf - set library path explicitly
+  export JAVA_JNI_CMAKE_ARGS="-DProtobuf_LIBRARY=/usr/local/lib/libprotobuf.dylib -DProtobuf_PROTOC_EXECUTABLE=/usr/local/bin/protoc"
+fi
 "${source_dir}/ci/scripts/jni_build.sh" \
   "${source_dir}" \
   "${install_dir}" \

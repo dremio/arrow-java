@@ -63,7 +63,6 @@ cmake \
   -DCMAKE_PREFIX_PATH="${arrow_install_dir}" \
   -DCMAKE_INSTALL_PREFIX="${prefix_dir}" \
   -DCMAKE_UNITY_BUILD="${CMAKE_UNITY_BUILD:-OFF}" \
-  -DProtobuf_USE_STATIC_LIBS=ON \
   -GNinja \
   "${EXTRA_CMAKE_OPTIONS[@]}"
 cmake --build "${build_dir}"

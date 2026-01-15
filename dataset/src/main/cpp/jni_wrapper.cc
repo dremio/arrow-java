@@ -25,8 +25,13 @@
 #include "arrow/c/helpers.h"
 #include "arrow/dataset/api.h"
 #include "arrow/dataset/file_base.h"
+#include "arrow/dataset/file_parquet.h"
+#include "arrow/dataset/file_ipc.h"
 #ifdef ARROW_CSV
 #include "arrow/dataset/file_csv.h"
+#endif
+#ifdef ARROW_JSON
+#include "arrow/dataset/file_json.h"
 #endif
 #include "arrow/filesystem/api.h"
 #include "arrow/filesystem/path_util.h"

@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include <arrow/extension_type.h>
 #include <arrow/util/logging.h>
 #include <gandiva/arrow.h>
 #include <gandiva/expression_registry.h>
@@ -42,6 +43,13 @@ gandiva::types::TimeUnit MapTimeUnit(arrow::TimeUnit::type& unit) {
 }
 
 void ArrowToProtobuf(DataTypePtr type, gandiva::types::ExtGandivaType* gandiva_data_type) {
+  // Handle extension types by preserving extension name and using storage type
+  if (type->id() == arrow::Type::EXTENSION) {
+    auto ext_type = std::dynamic_pointer_cast<arrow::ExtensionType>(type);
+    gandiva_data_type->set_extensionname(ext_type->extension_name());
+    type = ext_type->storage_type();
+  }
+
   switch (type->id()) {
     case arrow::Type::BOOL:
       gandiva_data_type->set_type(gandiva::types::GandivaType::BOOL);
@@ -85,6 +93,13 @@ void ArrowToProtobuf(DataTypePtr type, gandiva::types::ExtGandivaType* gandiva_d
     case arrow::Type::BINARY:
       gandiva_data_type->set_type(gandiva::types::GandivaType::BINARY);
       break;
+    case arrow::Type::FIXED_SIZE_BINARY: {
+      gandiva_data_type->set_type(gandiva::types::GandivaType::FIXED_SIZE_BINARY);
+      std::shared_ptr<arrow::FixedSizeBinaryType> fixed_size_binary_type =
+          std::dynamic_pointer_cast<arrow::FixedSizeBinaryType>(type);
+      gandiva_data_type->set_width(fixed_size_binary_type->byte_width());
+      break;
+    }
     case arrow::Type::DATE32:
       gandiva_data_type->set_type(gandiva::types::GandivaType::DATE32);
       break;

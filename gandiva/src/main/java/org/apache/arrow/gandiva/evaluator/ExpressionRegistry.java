@@ -126,6 +126,18 @@ public class ExpressionRegistry {
   }
 
   private static ArrowType getArrowType(ExtGandivaType type) {
+    // Check if this is an extension type
+    if (type.hasExtensionName() && !type.getExtensionName().isEmpty()) {
+      String extensionName = type.getExtensionName();
+
+      // Handle known extension types
+      if ("arrow.uuid".equals(extensionName)) {
+        // this should be the new Arrow UUID type from: https://github.com/apache/arrow-java/pull/903
+        return new UuidType();
+      }
+      throw new UnsupportedOperationException("Cannot get ArrowType for unknown extension type: " + extensionName);
+    }
+
     switch (type.getType().getNumber()) {
       case GandivaType.BOOL_VALUE:
         return ArrowType.Bool.INSTANCE;
@@ -155,6 +167,8 @@ public class ExpressionRegistry {
         return new ArrowType.Utf8();
       case GandivaType.BINARY_VALUE:
         return new ArrowType.Binary();
+      case GandivaType.FIXED_SIZE_BINARY_VALUE:
+        return new ArrowType.FixedSizeBinary(type.getWidth());
       case GandivaType.DATE32_VALUE:
         return new ArrowType.Date(DateUnit.DAY);
       case GandivaType.DATE64_VALUE:
@@ -171,7 +185,6 @@ public class ExpressionRegistry {
         return new ArrowType.Decimal(0, 0, 128);
       case GandivaType.INTERVAL_VALUE:
         return new ArrowType.Interval(mapArrowIntervalUnit(type.getIntervalType()));
-      case GandivaType.FIXED_SIZE_BINARY_VALUE:
       case GandivaType.MAP_VALUE:
       case GandivaType.DICTIONARY_VALUE:
       case GandivaType.LIST_VALUE:
