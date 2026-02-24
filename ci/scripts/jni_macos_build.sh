@@ -84,7 +84,7 @@ case "${vcpkg_arch}" in
 arm64)
   vcpkg_triplet="arm64-osx"
   ;;
-i386|x86_64)
+i386 | x86_64)
   vcpkg_triplet="x64-osx"
   ;;
 *)
