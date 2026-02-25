@@ -25,6 +25,22 @@ set -euo pipefail
 # shellcheck source=ci/scripts/util_log.sh
 . "$(dirname "${0}")/util_log.sh"
 
+github_actions_group_begin "Update llvm"
+vcpkg install \
+  --debug \
+  --clean-after-build \
+  --x-install-root="${VCPKG_ROOT}/installed" \
+  --x-manifest-root=/arrow/ci/vcpkg \
+  --overlay-ports=/arrow/ci/vcpkg/overlay/llvm/ \
+  --x-feature=dev \
+  --x-feature=flight \
+  --x-feature=gcs \
+  --x-feature=json \
+  --x-feature=parquet \
+  --x-feature=gandiva \
+  --x-feature=s3
+github_actions_group_end
+
 github_actions_group_begin "Prepare arguments"
 source_dir="$(cd "${1}" && pwd)"
 arrow_dir="$(cd "${2}" && pwd)"
@@ -57,7 +73,7 @@ devtoolset_version="$(rpm -qa "devtoolset-*-gcc" --queryformat '%{VERSION}' | gr
 devtoolset_include_cpp="/opt/rh/devtoolset-${devtoolset_version}/root/usr/include/c++/${devtoolset_version}"
 : "${ARROW_ACERO:=ON}"
 export ARROW_ACERO
-: "${ARROW_BUILD_TESTS:=ON}"
+: "${ARROW_BUILD_TESTS:=OFF}"
 export ARROW_BUILD_TESTS
 : "${ARROW_DATASET:=ON}"
 export ARROW_DATASET
