@@ -29,7 +29,7 @@ github_actions_group_begin "Update llvm"
 vcpkg install \
   --debug \
   --clean-after-build \
-  --x-install-root=${VCPKG_ROOT}/installed \
+  --x-install-root="${VCPKG_ROOT}/installed" \
   --x-manifest-root=/arrow/ci/vcpkg \
   --overlay-ports=/arrow/ci/vcpkg/overlay/llvm/ \
   --x-feature=dev \
