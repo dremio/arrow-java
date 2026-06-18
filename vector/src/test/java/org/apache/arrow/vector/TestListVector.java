@@ -1403,8 +1403,8 @@ public class TestListVector {
   public void testEmptyListOffsetBufferWithoutAllocate() {
     // Regression test for the Arrow 19 IOOBE: a never-allocated ListVector must produce a valid
     // offset buffer from getFieldBuffers() even when allocateNew() was never called.
-    // getFieldBuffers() substitutes a properly-sized temp buffer when the vector's own offset
-    // buffer has capacity 0 but writerIndex > 0 (the inconsistent state from Arrow 19).
+    // getFieldBuffers() allocates a real offset buffer when the vector's own offset buffer has
+    // capacity 0 but writerIndex > 0 (the inconsistent state from Arrow 19).
     try (ListVector list = ListVector.empty("list", allocator)) {
       list.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
       list.setValueCount(0);
@@ -1419,8 +1419,7 @@ public class TestListVector {
           "Returned offset buffer should have readableBytes >= "
               + BaseRepeatedValueVector.OFFSET_WIDTH);
       assertEquals(0, offsetBuf.getInt(0));
-      // Release the temp buffer allocated by getFieldBuffers()
-      offsetBuf.close();
+      // Vector owns the buffer — no manual close needed
     }
   }
 

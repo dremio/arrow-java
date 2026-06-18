@@ -1137,7 +1137,7 @@ public class TestLargeListVector {
           offsetBuf.readableBytes() >= LargeListVector.OFFSET_WIDTH,
           "Returned offset buffer should have readableBytes >= " + LargeListVector.OFFSET_WIDTH);
       assertEquals(0L, offsetBuf.getLong(0));
-      offsetBuf.close();
+      // Vector owns the buffer — no manual close needed
     }
   }
 

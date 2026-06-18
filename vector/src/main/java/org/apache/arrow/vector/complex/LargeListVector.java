@@ -278,12 +278,12 @@ public class LargeListVector extends BaseValueVector
     setReaderAndWriterIndex();
     result.add(validityBuffer);
     if (offsetBuffer.capacity() == 0 && offsetBuffer.writerIndex() > 0) {
-      ArrowBuf tempOffset = allocateOffsetBuffer(offsetBuffer.writerIndex());
-      tempOffset.writerIndex(offsetBuffer.writerIndex());
-      result.add(tempOffset);
-    } else {
-      result.add(offsetBuffer);
+      long writerIdx = offsetBuffer.writerIndex();
+      offsetBuffer.getReferenceManager().release();
+      offsetBuffer = allocateOffsetBuffer(offsetAllocationSizeInBytes);
+      offsetBuffer.writerIndex(writerIdx);
     }
+    result.add(offsetBuffer);
     return result;
   }
 
