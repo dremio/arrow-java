@@ -280,7 +280,11 @@ public class LargeListVector extends BaseValueVector
     if (offsetBuffer.capacity() == 0 && offsetBuffer.writerIndex() > 0) {
       long writerIdx = offsetBuffer.writerIndex();
       offsetBuffer.getReferenceManager().release();
-      offsetBuffer = allocateOffsetBuffer((long) (valueCount + 1) * OFFSET_WIDTH);
+      long allocSize =
+          Math.max((long) (valueCount + 1) * OFFSET_WIDTH, INITIAL_VALUE_ALLOCATION * OFFSET_WIDTH);
+      offsetBuffer = allocator.buffer(allocSize);
+      offsetBuffer.setZero(0, offsetBuffer.capacity());
+      offsetBuffer.readerIndex(0);
       offsetBuffer.writerIndex(writerIdx);
     }
     result.add(offsetBuffer);
