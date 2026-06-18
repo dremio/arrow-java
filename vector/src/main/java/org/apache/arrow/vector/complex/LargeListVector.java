@@ -277,7 +277,7 @@ public class LargeListVector extends BaseValueVector
     List<ArrowBuf> result = new ArrayList<>(2);
     setReaderAndWriterIndex();
     result.add(validityBuffer);
-    if (offsetBuffer.capacity() == 0 && offsetBuffer.writerIndex() > 0) {
+    if (valueCount == 0 && offsetBuffer.capacity() == 0 && offsetBuffer.writerIndex() > 0) {
       long writerIdx = offsetBuffer.writerIndex();
       offsetBuffer.getReferenceManager().release();
       long allocSize =

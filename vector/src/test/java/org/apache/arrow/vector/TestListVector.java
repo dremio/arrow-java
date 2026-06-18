@@ -1403,8 +1403,8 @@ public class TestListVector {
   public void testEmptyListOffsetBufferWithoutAllocate() {
     // Regression test for the Arrow 19 IOOBE: a never-allocated ListVector must produce a valid
     // offset buffer from getFieldBuffers() even when allocateNew() was never called.
-    // getFieldBuffers() allocates a real offset buffer when the vector's own offset buffer has
-    // capacity 0 but writerIndex > 0 (the inconsistent state from Arrow 19).
+    // getFieldBuffers() allocates a real offset buffer for an empty vector whose own offset buffer
+    // has capacity 0 but writerIndex > 0 (the inconsistent state from Arrow 19).
     try (ListVector list = ListVector.empty("list", allocator)) {
       list.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
       list.setValueCount(0);
