@@ -1132,12 +1132,10 @@ public class TestLargeListVector {
       ArrowBuf offsetBuf = buffers.get(1);
       assertTrue(
           offsetBuf.capacity() >= LargeListVector.OFFSET_WIDTH,
-          "Returned offset buffer should have capacity >= "
-              + LargeListVector.OFFSET_WIDTH);
+          "Returned offset buffer should have capacity >= " + LargeListVector.OFFSET_WIDTH);
       assertTrue(
           offsetBuf.readableBytes() >= LargeListVector.OFFSET_WIDTH,
-          "Returned offset buffer should have readableBytes >= "
-              + LargeListVector.OFFSET_WIDTH);
+          "Returned offset buffer should have readableBytes >= " + LargeListVector.OFFSET_WIDTH);
       assertEquals(0L, offsetBuf.getLong(0));
       offsetBuf.close();
     }

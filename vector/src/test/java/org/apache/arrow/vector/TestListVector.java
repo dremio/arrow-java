@@ -1413,8 +1413,7 @@ public class TestListVector {
       ArrowBuf offsetBuf = buffers.get(1);
       assertTrue(
           offsetBuf.capacity() >= BaseRepeatedValueVector.OFFSET_WIDTH,
-          "Returned offset buffer should have capacity >= "
-              + BaseRepeatedValueVector.OFFSET_WIDTH);
+          "Returned offset buffer should have capacity >= " + BaseRepeatedValueVector.OFFSET_WIDTH);
       assertTrue(
           offsetBuf.readableBytes() >= BaseRepeatedValueVector.OFFSET_WIDTH,
           "Returned offset buffer should have readableBytes >= "
