@@ -1410,6 +1410,11 @@ public class TestListVector {
       list.setValueCount(0);
 
       List<ArrowBuf> buffers = list.getFieldBuffers();
+      ArrowBuf validityBuf = buffers.get(0);
+      assertEquals(0, validityBuf.readerIndex());
+      assertEquals(0, validityBuf.writerIndex());
+      assertEquals(0, validityBuf.readableBytes());
+
       ArrowBuf offsetBuf = buffers.get(1);
       assertTrue(
           offsetBuf.capacity() >= BaseRepeatedValueVector.OFFSET_WIDTH,

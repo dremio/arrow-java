@@ -237,7 +237,13 @@ public class ListVector extends BaseRepeatedValueVector
     result.add(validityBuffer);
     if (valueCount == 0 && offsetBuffer.capacity() == 0 && offsetBuffer.writerIndex() > 0) {
       long writerIdx = offsetBuffer.writerIndex();
-      offsetBuffer.getReferenceManager().release();
+      ArrowBuf oldOffsetBuffer = offsetBuffer;
+      if (validityBuffer == oldOffsetBuffer) {
+        validityBuffer.readerIndex(0);
+        validityBuffer.writerIndex(0);
+      } else {
+        oldOffsetBuffer.getReferenceManager().release();
+      }
       long allocSize =
           Math.max((long) (valueCount + 1) * OFFSET_WIDTH, INITIAL_VALUE_ALLOCATION * OFFSET_WIDTH);
       offsetBuffer = allocator.buffer(allocSize);
