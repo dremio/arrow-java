@@ -956,6 +956,75 @@ public class TestLargeListVector {
   }
 
   @Test
+  public void testEmptyLargeListOffsetBuffer() {
+    try (LargeListVector list = LargeListVector.empty("list", allocator)) {
+      list.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
+      list.allocateNew();
+      list.setValueCount(0);
+
+      assertEmptyLargeListOffsetBuffer(list);
+    }
+  }
+
+  @Test
+  public void testUnallocatedEmptyLargeListOffsetBuffer() {
+    try (LargeListVector list = LargeListVector.empty("list", allocator)) {
+      list.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
+      list.setValueCount(0);
+
+      assertEmptyLargeListOffsetBuffer(list);
+    }
+  }
+
+  @Test
+  public void testSplitAndTransferEmptyLargeListAllocatesOffsetBuffer() {
+    try (LargeListVector fromVector = LargeListVector.empty("fromVector", allocator);
+        LargeListVector toVector = LargeListVector.empty("toVector", allocator)) {
+      fromVector.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
+      fromVector.allocateNew();
+      fromVector.setValueCount(0);
+
+      TransferPair transferPair = fromVector.makeTransferPair(toVector);
+      transferPair.splitAndTransfer(0, 0);
+
+      assertAllocatedEmptyLargeListOffsetBuffer(toVector);
+    }
+  }
+
+  @Test
+  public void testSplitAndTransferEmptyNestedLargeListAllocatesOffsetBuffers() {
+    try (LargeListVector fromVector = LargeListVector.empty("fromVector", allocator);
+        LargeListVector toVector = LargeListVector.empty("toVector", allocator)) {
+      fromVector.addOrGetVector(FieldType.nullable(MinorType.LARGELIST.getType()));
+      LargeListVector childVector = (LargeListVector) fromVector.getDataVector();
+      childVector.addOrGetVector(FieldType.nullable(MinorType.INT.getType()));
+      fromVector.allocateNew();
+      fromVector.setValueCount(0);
+
+      TransferPair transferPair = fromVector.makeTransferPair(toVector);
+      transferPair.splitAndTransfer(0, 0);
+
+      assertAllocatedEmptyLargeListOffsetBuffer(toVector);
+      assertAllocatedEmptyLargeListOffsetBuffer((LargeListVector) toVector.getDataVector());
+    }
+  }
+
+  private ArrowBuf assertEmptyLargeListOffsetBuffer(LargeListVector list) {
+    List<ArrowBuf> buffers = list.getFieldBuffers();
+    ArrowBuf offsetBuffer = buffers.get(1);
+    assertEquals(LargeListVector.OFFSET_WIDTH, offsetBuffer.readableBytes());
+    assertTrue(offsetBuffer.capacity() >= LargeListVector.OFFSET_WIDTH);
+    assertEquals(0L, offsetBuffer.getLong(0));
+    return offsetBuffer;
+  }
+
+  private void assertAllocatedEmptyLargeListOffsetBuffer(LargeListVector list) {
+    ArrowBuf offsetBuffer = list.getOffsetBuffer();
+    assertTrue(offsetBuffer.capacity() >= LargeListVector.OFFSET_WIDTH);
+    assertEquals(0L, offsetBuffer.getLong(0));
+  }
+
+  @Test
   public void testIsEmpty() {
     try (final LargeListVector vector = LargeListVector.empty("list", allocator)) {
       UnionLargeListWriter writer = vector.getWriter();

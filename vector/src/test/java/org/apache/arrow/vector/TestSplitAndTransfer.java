@@ -111,13 +111,16 @@ public class TestSplitAndTransfer {
   @Test
   public void testWithEmptyVector() {
     // MapVector use TransferImpl from ListVector
-    ListVector listVector = ListVector.empty("", allocator);
-    TransferPair transferPair = listVector.getTransferPair(allocator);
-    transferPair.splitAndTransfer(0, 0);
-    assertEquals(0, transferPair.getTo().getValueCount());
+    try (ListVector listVector = ListVector.empty("", allocator)) {
+      TransferPair transferPair = listVector.getTransferPair(allocator);
+      try (ValueVector toVector = transferPair.getTo()) {
+        transferPair.splitAndTransfer(0, 0);
+        assertEquals(0, toVector.getValueCount());
+      }
+    }
     // BaseFixedWidthVector
     IntVector intVector = new IntVector("", allocator);
-    transferPair = intVector.getTransferPair(allocator);
+    TransferPair transferPair = intVector.getTransferPair(allocator);
     transferPair.splitAndTransfer(0, 0);
     assertEquals(0, transferPair.getTo().getValueCount());
     // BaseVariableWidthVector
