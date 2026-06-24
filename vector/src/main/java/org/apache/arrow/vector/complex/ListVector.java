@@ -584,6 +584,10 @@ public class ListVector extends BaseRepeatedValueVector
         dataTransferPair.splitAndTransfer(startPoint, sliceLength);
         to.lastSet = length - 1;
         to.setValueCount(length);
+      } else {
+        to.ensureEmptyOffsetBufferCapacity(OFFSET_WIDTH);
+        dataTransferPair.splitAndTransfer(0, 0);
+        to.setValueCount(0);
       }
     }
 
