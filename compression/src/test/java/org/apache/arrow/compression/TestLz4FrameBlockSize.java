@@ -18,11 +18,13 @@ package org.apache.arrow.compression;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Random;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -30,10 +32,34 @@ import org.apache.arrow.vector.compression.CompressionUtil;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /** Regression coverage for bounded frame buffers and multi-block interoperability. */
 class TestLz4FrameBlockSize {
+  @Test
+  void preservesCompressionAcrossSmallBlockBoundaries() {
+    byte[] pattern = new byte[50000];
+    new Random(1323).nextBytes(pattern);
+    byte[] expected = new byte[1000000];
+    for (int i = 0; i < expected.length; i++) {
+      expected[i] = pattern[i % pattern.length];
+    }
+    try (BufferAllocator allocator = new RootAllocator(Integer.MAX_VALUE)) {
+      ArrowBuf input = allocator.buffer(expected.length);
+      input.setBytes(0, expected);
+      input.writerIndex(expected.length);
+      Lz4CompressionCodec codec = new Lz4CompressionCodec();
+      ArrowBuf compressed = codec.compress(allocator, input);
+      long size = compressed.writerIndex();
+      try (ArrowBuf restored = codec.decompress(allocator, compressed)) {
+        byte[] actual = new byte[expected.length];
+        restored.getBytes(0, actual);
+        assertArrayEquals(expected, actual);
+        assertTrue(size < expected.length / 4, "Large buffers must retain cross-block matches");
+      }
+    }
+  }
+
   @Test
   void stillReadsFourMiBFrames() throws IOException {
     byte[] expected = new byte[131072];
@@ -62,8 +88,17 @@ class TestLz4FrameBlockSize {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {1024, 65536, 65537, 262144, 5242880})
-  void usesSmallFrameBlocksAndRoundTrips(int length) {
+  @CsvSource({
+    "1024, 4",
+    "65536, 4",
+    "65537, 5",
+    "262144, 5",
+    "262145, 6",
+    "1048576, 6",
+    "1048577, 7",
+    "5242880, 7"
+  })
+  void usesAppropriateFrameBlocksAndRoundTrips(int length, int expectedBlockSizeId) {
     byte[] expected = new byte[length];
     for (int i = 0; i < length; i++) {
       expected[i] = (byte) (i % 17);
@@ -79,7 +114,8 @@ class TestLz4FrameBlockSize {
         // The LZ4 frame BD byte follows its four-byte magic and FLG byte.
         int blockSizeId =
             (compressed.getByte(CompressionUtil.SIZE_OF_UNCOMPRESSED_LENGTH + 5) >>> 4) & 7;
-        assertEquals(4, blockSizeId, "LZ4 frames must use 64-KiB blocks, not 4-MiB buffers");
+        assertEquals(
+            expectedBlockSizeId, blockSizeId, "LZ4 frame block allocation must fit the input");
       } catch (Throwable failure) {
         compressed.close();
         throw failure;
