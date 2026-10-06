@@ -267,11 +267,10 @@ jobs:
           # tries to replace /usr/local/bin/2to3 and so on and causes
           # a conflict error.
           brew update
-          # The runner's linked OpenSSL 1.1 conflicts with OpenSSL 3 when
-          # Homebrew upgrades Python dependencies. Keep the old keg installed.
-          if brew list --versions openssl@1.1 >/dev/null 2>&1; then
-            brew unlink openssl@1.1
-          fi
+          # The runner has stale OpenSSL 1.1 links not tracked by brew unlink.
+          # Relink its installed OpenSSL 3 before upgrading Python dependencies.
+          brew unlink openssl@3
+          brew link --overwrite openssl@3
           for python_package in $(brew list | grep python@); do
             brew install --overwrite ${python_package}
           done
