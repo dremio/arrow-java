@@ -44,7 +44,11 @@ public class Lz4CompressionCodec extends AbstractCompressionCodec {
     uncompressedBuffer.getBytes(/* index= */ 0, inBytes);
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     try (InputStream in = new ByteArrayInputStream(inBytes);
-        OutputStream out = new FramedLZ4CompressorOutputStream(baos)) {
+        // The default reserves 4 MiB for every Arrow buffer, including tiny validity buffers.
+        OutputStream out =
+            new FramedLZ4CompressorOutputStream(
+                baos,
+                new FramedLZ4CompressorOutputStream.Parameters(frameBlockSize(inBytes.length)))) {
       IOUtils.copy(in, out);
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -57,6 +61,19 @@ public class Lz4CompressionCodec extends AbstractCompressionCodec {
     compressedBuffer.setBytes(CompressionUtil.SIZE_OF_UNCOMPRESSED_LENGTH, outBytes);
     compressedBuffer.writerIndex(CompressionUtil.SIZE_OF_UNCOMPRESSED_LENGTH + outBytes.length);
     return compressedBuffer;
+  }
+
+  private static FramedLZ4CompressorOutputStream.BlockSize frameBlockSize(int length) {
+    if (length <= 65536) {
+      return FramedLZ4CompressorOutputStream.BlockSize.K64;
+    }
+    if (length <= 262144) {
+      return FramedLZ4CompressorOutputStream.BlockSize.K256;
+    }
+    if (length <= 1048576) {
+      return FramedLZ4CompressorOutputStream.BlockSize.M1;
+    }
+    return FramedLZ4CompressorOutputStream.BlockSize.M4;
   }
 
   @Override
