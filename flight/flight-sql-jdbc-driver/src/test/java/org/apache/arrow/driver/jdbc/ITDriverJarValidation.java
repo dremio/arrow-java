@@ -184,6 +184,22 @@ public class ITDriverJarValidation {
     }
   }
 
+  /** Generated Flight messages must initialize against the bundled Protobuf runtime. */
+  @Test
+  public void checkFlightProtocolRuntime() throws Throwable {
+    try (URLClassLoader driverClassLoader =
+        new URLClassLoader(new URL[] {getJdbcJarFile().toURI().toURL()}, null)) {
+      Class<?> ticketClass =
+          driverClassLoader.loadClass(
+              "org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.impl.Flight$Ticket");
+      try {
+        assertNotNull(ticketClass.getMethod("newBuilder").invoke(null));
+      } catch (InvocationTargetException e) {
+        throw e.getCause();
+      }
+    }
+  }
+
   /**
    * Check if a jar entry is allowed.
    *
