@@ -44,7 +44,12 @@ public class Lz4CompressionCodec extends AbstractCompressionCodec {
     uncompressedBuffer.getBytes(/* index= */ 0, inBytes);
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     try (InputStream in = new ByteArrayInputStream(inBytes);
-        OutputStream out = new FramedLZ4CompressorOutputStream(baos)) {
+        // The default reserves 4 MiB for every Arrow buffer, including tiny validity buffers.
+        OutputStream out =
+            new FramedLZ4CompressorOutputStream(
+                baos,
+                new FramedLZ4CompressorOutputStream.Parameters(
+                    FramedLZ4CompressorOutputStream.BlockSize.K64))) {
       IOUtils.copy(in, out);
     } catch (IOException e) {
       throw new RuntimeException(e);
