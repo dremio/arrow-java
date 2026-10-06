@@ -16,6 +16,7 @@
  */
 package org.apache.arrow.driver.jdbc;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -151,6 +152,32 @@ public class ITDriverJarValidation {
       Method method = openSslClass.getDeclaredMethod("ensureAvailability");
       try {
         method.invoke(null);
+      } catch (InvocationTargetException e) {
+        throw e.getCause();
+      }
+    }
+  }
+
+  /** Zstd JNI bindings must work from the shaded driver without external dependencies. */
+  @Test
+  @Timeout(value = 2, unit = TimeUnit.MINUTES)
+  public void checkZstdNativeRoundTrip() throws Throwable {
+    try (URLClassLoader driverClassLoader =
+        new URLClassLoader(new URL[] {getJdbcJarFile().toURI().toURL()}, null)) {
+      Class<?> zstdClass = driverClassLoader.loadClass("com.github.luben.zstd.Zstd");
+      byte[] input = new byte[16384];
+      for (int i = 0; i < input.length; i++) {
+        input[i] = (byte) (i % 31);
+      }
+      try {
+        byte[] compressed =
+            (byte[]) zstdClass.getMethod("compress", byte[].class).invoke(null, (Object) input);
+        byte[] restored =
+            (byte[])
+                zstdClass
+                    .getMethod("decompress", byte[].class, int.class)
+                    .invoke(null, compressed, input.length);
+        assertArrayEquals(input, restored);
       } catch (InvocationTargetException e) {
         throw e.getCause();
       }
