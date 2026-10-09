@@ -103,7 +103,8 @@ export JAVA_JNI_CMAKE_ARGS
   "${source_dir}" \
   "${install_dir}" \
   "${build_dir}" \
-  "${dist_dir}"
+  "${dist_dir}" "${arrow_dir}" \
+  "${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/lib/pkgconfig"
 
 if [ "${ARROW_USE_CCACHE}" == "ON" ]; then
   github_actions_group_begin "ccache statistics after build"
@@ -137,6 +138,3 @@ archery linking check-dependencies \
   gandiva_jni/"${normalized_arch}"/libgandiva_jni.so
 popd
 github_actions_group_end
-
-"${source_dir}/ci/scripts/parquet_build.sh" \
-  "${source_dir}" "${arrow_dir}" "${build_dir}" "${dist_dir}"

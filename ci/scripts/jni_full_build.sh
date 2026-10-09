@@ -85,8 +85,28 @@ github_actions_group_end
 popd
 
 github_actions_group_begin "Prepare artifacts"
-python3 "${source_dir}/ci/scripts/package_arrow_parquet.py" \
-  publish "${source_dir}" "${jni_build_dir}/arrow_parquet" "${dist_dir}"
+version=$(python3 -c 'import sys, xml.etree.ElementTree as ET; print(ET.parse(sys.argv[1]).getroot().find("{http://maven.apache.org/POM/4.0.0}version").text)' "${source_dir}/pom.xml")
+parquet_artifact="${dist_dir}/arrow-parquet-${version}"
+for platform in linux-x86_64 linux-aarch_64 osx-aarch_64; do
+  package_dir="${jni_build_dir}/arrow_parquet/${platform}"
+  test -f "${package_dir}/lib/pkgconfig/arrow-parquet.pc"
+  cmp "${jni_build_dir}/arrow_parquet/linux-x86_64/ARROW_CPP_REVISION" "${package_dir}/ARROW_CPP_REVISION"
+  jar cf "${parquet_artifact}-${platform}.jar" -C "${package_dir}" .
+done
+jar cf "${parquet_artifact}.jar" -C "${package_dir}" META-INF -C "${package_dir}" ARROW_CPP_REVISION
+cat >"${parquet_artifact}.pom" <<EOF
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.apache.arrow</groupId>
+  <artifactId>arrow-parquet</artifactId>
+  <version>${version}</version>
+  <packaging>jar</packaging>
+  <name>Arrow Parquet</name>
+  <licenses><license><name>Apache License, Version 2.0</name>
+    <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+  </license></licenses>
+</project>
+EOF
 # copy all jar, zip and pom files to the distribution folder
 find ~/.m2/repository/org/apache/arrow \
   "(" \
