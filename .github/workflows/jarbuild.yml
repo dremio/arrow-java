@@ -413,6 +413,8 @@ jobs:
           path: ~/.m2
           key: binaries-build-${{ hashFiles('**/*.java', '**/pom.xml') }}
           restore-keys: binaries-build-
+      - name: Test Arrow Parquet packaging
+        run: python3 -m unittest discover -s ci/scripts/tests -p test_package_arrow_parquet.py -v
       - name: Build bundled JAR and docs
         run: |
           ci/scripts/jni_full_build.sh . jni binaries

@@ -239,3 +239,6 @@ archery linking check-dependencies \
   "gandiva_jni/${normalized_arch}/libgandiva_jni.dylib"
 popd
 github_actions_group_end
+
+"${source_dir}/ci/scripts/parquet_build.sh" \
+  "${source_dir}" "${arrow_dir}" "${build_dir}" "${dist_dir}"

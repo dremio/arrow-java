@@ -85,6 +85,8 @@ github_actions_group_end
 popd
 
 github_actions_group_begin "Prepare artifacts"
+python3 "${source_dir}/ci/scripts/package_arrow_parquet.py" \
+  publish "${source_dir}" "${jni_build_dir}/arrow_parquet" "${dist_dir}"
 # copy all jar, zip and pom files to the distribution folder
 find ~/.m2/repository/org/apache/arrow \
   "(" \
