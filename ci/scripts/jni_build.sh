@@ -87,3 +87,81 @@ else
   mv "${prefix_dir}"/lib/* "${dist_dir}"/
 fi
 github_actions_group_end
+
+if [ -n "${5:-}" ]; then
+  github_actions_group_begin "Stage Arrow Parquet release libraries"
+  case "$(uname)" in
+  Linux) os=linux ;;
+  Darwin) os=osx ;;
+  esac
+  arch=$(uname -m)
+  case "${arch}" in
+  arm64 | aarch64) arch=aarch_64 ;;
+  esac
+  package_dir="${dist_dir}/arrow_parquet/${os}-${arch}"
+  mkdir -p "${package_dir}/lib/pkgconfig" "${package_dir}/META-INF"
+  cp -R "${arrow_install_dir}/include" "${package_dir}/"
+  cp "${5}/LICENSE.txt" "${package_dir}/META-INF/LICENSE"
+  cp "${5}/NOTICE.txt" "${package_dir}/META-INF/NOTICE"
+  git -c safe.directory="${5}" -C "${5}" rev-parse HEAD >"${package_dir}/ARROW_CPP_REVISION"
+  parquet_metadata=$(find "${arrow_install_dir}" -type f -name parquet.pc -print -quit)
+  if [ -z "${parquet_metadata}" ]; then
+    echo "Missing installed Parquet pkg-config metadata" >&2
+    exit 1
+  fi
+  export PKG_CONFIG_PATH="$(dirname "${parquet_metadata}"):${6:+${6}:}${PKG_CONFIG_PATH:-}"
+  library_flags=$(pkg-config --static --libs-only-L parquet arrow-compute)
+  read -ra library_dirs <<<"${library_flags}"
+  library_flags=$(pkg-config --static --libs parquet arrow-compute)
+  read -ra libraries <<<"${library_flags}"
+  cpp_version=$(pkg-config --modversion parquet)
+  link_flags=()
+  for flag in "${libraries[@]}"; do
+    case "${flag}" in
+    -L*) continue ;;
+    -lc | -lm | -ldl | -lpthread | -lrt | -lstdc++ | -lc++ | -lresolv)
+      link_flags+=("${flag}")
+      continue
+      ;;
+    -l*)
+      archive=""
+      for directory in "${library_dirs[@]}"; do
+        candidate="${directory#-L}/lib${flag#-l}.a"
+        if [ -f "${candidate}" ]; then
+          archive="${candidate}"
+          break
+        fi
+      done
+      if [ -z "${archive}" ]; then
+        archive=$(c++ -print-file-name="lib${flag#-l}.a")
+      fi
+      if [ ! -f "${archive}" ]; then
+        if [ "${os}" = osx ] && [[ "${flag}" = -lz || "${flag}" = -lcurl ]]; then
+          link_flags+=("${flag}")
+          continue
+        fi
+        echo "Missing static dependency: ${flag}" >&2
+        exit 1
+      fi
+      cp "${archive}" "${package_dir}/lib/"
+      ;;
+    *.a)
+      cp "${flag}" "${package_dir}/lib/"
+      archive_name=$(basename "${flag}" .a)
+      flag="-l${archive_name#lib}"
+      ;;
+    esac
+    link_flags+=("${flag}")
+  done
+  cat >"${package_dir}/lib/pkgconfig/arrow-parquet.pc" <<EOF
+prefix=\${pcfiledir}/../..
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+Name: Arrow Parquet
+Description: Static Arrow C++ Parquet libraries (requires C++20 for Arrow 23)
+Version: ${cpp_version}
+Libs: -L\${libdir} ${link_flags[*]}
+Cflags: -I\${includedir} -DARROW_STATIC -DARROW_COMPUTE_STATIC -DPARQUET_STATIC
+EOF
+  github_actions_group_end
+fi

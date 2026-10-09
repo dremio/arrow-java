@@ -208,7 +208,8 @@ export JAVA_JNI_CMAKE_ARGS="${jni_cmake_args}"
   "${source_dir}" \
   "${install_dir}" \
   "${build_dir}" \
-  "${dist_dir}"
+  "${dist_dir}" "${arrow_dir}" \
+  "${VCPKG_ROOT_LOCAL:+${VCPKG_ROOT_LOCAL}/installed/${vcpkg_triplet}/lib/pkgconfig}"
 
 if [ "${ARROW_USE_CCACHE}" == "ON" ]; then
   github_actions_group_begin "ccache statistics after build"
