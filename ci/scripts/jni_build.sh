@@ -104,7 +104,12 @@ if [ -n "${5:-}" ]; then
   cp "${5}/LICENSE.txt" "${package_dir}/META-INF/LICENSE"
   cp "${5}/NOTICE.txt" "${package_dir}/META-INF/NOTICE"
   git -c safe.directory="${5}" -C "${5}" rev-parse HEAD >"${package_dir}/ARROW_CPP_REVISION"
-  export PKG_CONFIG_PATH="${arrow_install_dir}/lib/pkgconfig:${6:+${6}:}${PKG_CONFIG_PATH:-}"
+  parquet_metadata=$(find "${arrow_install_dir}" -type f -name parquet.pc -print -quit)
+  if [ -z "${parquet_metadata}" ]; then
+    echo "Missing installed Parquet pkg-config metadata" >&2
+    exit 1
+  fi
+  export PKG_CONFIG_PATH="$(dirname "${parquet_metadata}"):${6:+${6}:}${PKG_CONFIG_PATH:-}"
   library_flags=$(pkg-config --static --libs-only-L parquet arrow-compute)
   read -ra library_dirs <<<"${library_flags}"
   library_flags=$(pkg-config --static --libs parquet arrow-compute)
