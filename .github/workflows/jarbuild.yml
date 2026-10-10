@@ -256,6 +256,14 @@ jobs:
           df -h /
       - name: Install dependencies
         run: |
+          if [ "${{ matrix.platform.arch }}" = "x86_64" ]; then
+            for tool in cmake ninja pkg-config; do
+              command -v "${tool}"
+            done
+            test -x "${JAVA_HOME_11_X64}/bin/java"
+            echo "JAVA_HOME=${JAVA_HOME_11_X64}" >> "${GITHUB_ENV}"
+            exit 0
+          fi
           echo "=== Free disk space at start of dependency installation ==="
           df -h /
 
@@ -352,9 +360,25 @@ jobs:
 
           echo ""
           set -e
-          # make brew Java available to CMake
-          export JAVA_HOME=$(brew --prefix openjdk@11)/libexec/openjdk.jdk/Contents/Home
-          ci/scripts/jni_macos_build.sh . arrow build jni
+          if [ "${{ matrix.platform.arch }}" = "x86_64" ]; then
+            cmake -S arrow/cpp -B build/cpp -GNinja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX="${PWD}/build/cpp-install" \
+              -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+              -DARROW_BUILD_SHARED=OFF \
+              -DARROW_DEPENDENCY_SOURCE=BUNDLED \
+              -DARROW_DEPENDENCY_USE_SHARED=OFF \
+              -DARROW_COMPUTE=ON -DARROW_PARQUET=ON \
+              -DARROW_WITH_SNAPPY=ON -DARROW_WITH_ZLIB=ON -DARROW_WITH_ZSTD=ON \
+              -DARROW_WITH_LZ4=ON -DARROW_WITH_UTF8PROC=ON \
+              -DARROW_GANDIVA=OFF -DARROW_DATASET=OFF -DARROW_ORC=OFF -DARROW_S3=OFF
+            cmake --build build/cpp --target install --parallel "$(sysctl -n hw.logicalcpu)"
+            ci/scripts/jni_build.sh . "${PWD}/build/cpp-install" build jni arrow
+          else
+            # make brew Java available to CMake
+            export JAVA_HOME=$(brew --prefix openjdk@11)/libexec/openjdk.jdk/Contents/Home
+            ci/scripts/jni_macos_build.sh . arrow build jni
+          fi
 
           echo ""
           echo "=== Free disk space at end of build ==="
@@ -384,6 +408,7 @@ jobs:
           tar -xvzf jni-linux-x86_64.tar.gz
           tar -xvzf jni-linux-aarch_64.tar.gz
           tar -xvzf jni-macos-aarch_64.tar.gz
+          tar -xvzf jni-macos-x86_64.tar.gz
       - name: Test that shared libraries exist
         run: |
           set -x
