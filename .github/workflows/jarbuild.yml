@@ -32,6 +32,11 @@ on:
         description: 'release tag name'
         type: string
         required: true
+      include_macos_intel:
+        description: 'Build the macOS Intel Parquet package'
+        type: boolean
+        required: false
+        default: true
 
 concurrency:
   group: ${{ github.repository }}-${{ github.head_ref || github.sha }}-${{ github.workflow }}
@@ -183,9 +188,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - { runs_on: macos-15, arch: "aarch_64" }
-          - { runs_on: macos-15-intel, arch: "x86_64" }
+        platform: ${{ fromJSON(github.event.inputs.include_macos_intel == 'false' && '[{"runs_on":"macos-15","arch":"aarch_64"}]' || '[{"runs_on":"macos-15","arch":"aarch_64"},{"runs_on":"macos-15-intel","arch":"x86_64"}]') }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "15.0"
     steps:
@@ -409,7 +412,9 @@ jobs:
           tar -xvzf jni-linux-x86_64.tar.gz
           tar -xvzf jni-linux-aarch_64.tar.gz
           tar -xvzf jni-macos-aarch_64.tar.gz
-          tar -xvzf jni-macos-x86_64.tar.gz
+          if [ "${{ github.event.inputs.include_macos_intel }}" != "false" ]; then
+            tar -xvzf jni-macos-x86_64.tar.gz
+          fi
       - name: Test that shared libraries exist
         run: |
           set -x
@@ -441,6 +446,8 @@ jobs:
           key: binaries-build-${{ hashFiles('**/*.java', '**/pom.xml') }}
           restore-keys: binaries-build-
       - name: Build bundled JAR and docs
+        env:
+          ARROW_PARQUET_PLATFORMS: ${{ github.event.inputs.include_macos_intel == 'false' && 'linux-x86_64 linux-aarch_64 osx-aarch_64' || 'linux-x86_64 linux-aarch_64 osx-aarch_64 osx-x86_64' }}
         run: |
           ci/scripts/jni_full_build.sh . jni binaries
       - name: Prepare docs
