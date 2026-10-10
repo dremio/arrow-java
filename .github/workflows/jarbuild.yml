@@ -373,7 +373,8 @@ jobs:
               -DARROW_WITH_LZ4=ON -DARROW_WITH_UTF8PROC=ON \
               -DARROW_GANDIVA=OFF -DARROW_DATASET=OFF -DARROW_ORC=OFF -DARROW_S3=OFF
             cmake --build build/cpp --target install --parallel "$(sysctl -n hw.logicalcpu)"
-            ci/scripts/jni_build.sh . "${PWD}/build/cpp-install" build jni arrow
+            JAVA_JNI_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=x86_64" \
+              ci/scripts/jni_build.sh . "${PWD}/build/cpp-install" build jni arrow
           else
             # make brew Java available to CMake
             export JAVA_HOME=$(brew --prefix openjdk@11)/libexec/openjdk.jdk/Contents/Home
