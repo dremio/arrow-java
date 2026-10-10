@@ -87,7 +87,7 @@ popd
 github_actions_group_begin "Prepare artifacts"
 version=$(python3 -c 'import sys, xml.etree.ElementTree as ET; print(ET.parse(sys.argv[1]).getroot().find("{http://maven.apache.org/POM/4.0.0}version").text)' "${source_dir}/pom.xml")
 parquet_artifact="${dist_dir}/arrow-parquet-${version}"
-for platform in linux-x86_64 linux-aarch_64 osx-aarch_64 osx-x86_64; do
+for platform in ${ARROW_PARQUET_PLATFORMS:-linux-x86_64 linux-aarch_64 osx-aarch_64 osx-x86_64}; do
   package_dir="${jni_build_dir}/arrow_parquet/${platform}"
   test -f "${package_dir}/lib/pkgconfig/arrow-parquet.pc"
   cmp "${jni_build_dir}/arrow_parquet/linux-x86_64/ARROW_CPP_REVISION" "${package_dir}/ARROW_CPP_REVISION"
