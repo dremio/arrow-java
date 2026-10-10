@@ -185,6 +185,7 @@ jobs:
       matrix:
         platform:
           - { runs_on: macos-15, arch: "aarch_64" }
+          - { runs_on: macos-15-intel, arch: "x86_64" }
     env:
       MACOSX_DEPLOYMENT_TARGET: "15.0"
     steps:

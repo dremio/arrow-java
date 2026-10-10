@@ -109,10 +109,17 @@ if [ -n "${5:-}" ]; then
     echo "Missing installed Parquet pkg-config metadata" >&2
     exit 1
   fi
-  export PKG_CONFIG_PATH="$(dirname "${parquet_metadata}"):${6:+${6}:}${PKG_CONFIG_PATH:-}"
-  library_flags=$(pkg-config --static --libs-only-L parquet arrow-compute)
+  PKG_CONFIG_PATH="$(dirname "${parquet_metadata}"):${6:+${6}:}${PKG_CONFIG_PATH:-}"
+  export PKG_CONFIG_PATH
+  packages=(parquet arrow-compute)
+  for dependency in re2 thrift liblz4 libzstd libutf8proc; do
+    if pkg-config --exists "${dependency}"; then
+      packages+=("${dependency}")
+    fi
+  done
+  library_flags=$(pkg-config --static --libs-only-L "${packages[@]}")
   read -ra library_dirs <<<"${library_flags}"
-  library_flags=$(pkg-config --static --libs parquet arrow-compute)
+  library_flags=$(pkg-config --static --libs "${packages[@]}")
   read -ra libraries <<<"${library_flags}"
   cpp_version=$(pkg-config --modversion parquet)
   link_flags=()
@@ -163,5 +170,37 @@ Version: ${cpp_version}
 Libs: -L\${libdir} ${link_flags[*]}
 Cflags: -I\${includedir} -DARROW_STATIC -DARROW_COMPUTE_STATIC -DPARQUET_STATIC
 EOF
+  github_actions_group_begin "Verify staged Arrow Parquet SDK"
+  cat >"${build_dir}/parquet_sdk_smoke.cc" <<'EOF'
+#include <arrow/api.h>
+#include <arrow/compute/initialize.h>
+#include <arrow/io/api.h>
+#include <parquet/arrow/reader.h>
+#include <parquet/arrow/writer.h>
+
+int main() {
+  if (!arrow::compute::Initialize().ok()) return 1;
+  arrow::Int64Builder builder;
+  if (!builder.Append(42).ok()) return 1;
+  auto values = builder.Finish().ValueOrDie();
+  auto table = arrow::Table::Make(arrow::schema({arrow::field("value", arrow::int64())}), {values});
+  for (auto codec : {parquet::Compression::SNAPPY, parquet::Compression::GZIP,
+                     parquet::Compression::ZSTD}) {
+    auto output = arrow::io::BufferOutputStream::Create().ValueOrDie();
+    auto properties = parquet::WriterProperties::Builder().compression(codec)->build();
+    if (!parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), output, 1,
+                                    properties).ok()) return 1;
+    auto input = std::make_shared<arrow::io::BufferReader>(output->Finish().ValueOrDie());
+    auto reader = parquet::arrow::OpenFile(input, arrow::default_memory_pool()).ValueOrDie();
+    std::shared_ptr<arrow::Table> actual;
+    if (!reader->ReadTable(&actual).ok() || !table->Equals(*actual)) return 1;
+  }
+}
+EOF
+  smoke_flags=$(PKG_CONFIG_PATH='' PKG_CONFIG_LIBDIR="${package_dir}/lib/pkgconfig" pkg-config --cflags --libs arrow-parquet)
+  read -ra smoke_options <<<"${smoke_flags}"
+  "${CXX:-c++}" -std=c++20 "${build_dir}/parquet_sdk_smoke.cc" "${smoke_options[@]}" -o "${build_dir}/parquet_sdk_smoke"
+  "${build_dir}/parquet_sdk_smoke"
+  github_actions_group_end
   github_actions_group_end
 fi
