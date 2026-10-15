@@ -108,7 +108,6 @@ services:
     environment:
       ARROW_JAVA_CDATA: "ON"
       ARROW_ORC_URL:
-      ARROW_THRIFT_URL:
       CCACHE_DIR: "/ccache"
     command:
       ["git config --global --add safe.directory /arrow-java && \

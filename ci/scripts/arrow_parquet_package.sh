@@ -68,8 +68,8 @@ fi
 PKG_CONFIG_PATH="$(dirname "${parquet_metadata}"):${dependency_pkgconfig_dir:+${dependency_pkgconfig_dir}:}${PKG_CONFIG_PATH:-}"
 export PKG_CONFIG_PATH
 packages=(parquet arrow-compute)
-# Bundled builds carry these in libarrow_bundled_dependencies.a; only probe
-# for them when the caller supplies an external dependency installation.
+# Without an external dependency installation, Arrow bundles these into
+# libarrow_bundled_dependencies.a; probing would pick up unrelated host copies.
 if [ -n "${dependency_pkgconfig_dir}" ]; then
   for dependency in re2 thrift liblz4 libzstd libutf8proc; do
     if pkg-config --exists "${dependency}"; then
@@ -77,8 +77,11 @@ if [ -n "${dependency_pkgconfig_dir}" ]; then
     fi
   done
 fi
-read -ra library_dirs <<<"$(pkg-config --static --libs-only-L "${packages[@]}")"
-read -ra libraries <<<"$(pkg-config --static --libs "${packages[@]}")"
+# Assign before splitting so that a pkg-config failure stops the script.
+library_flags=$(pkg-config --static --libs-only-L "${packages[@]}")
+read -ra library_dirs <<<"${library_flags}"
+library_flags=$(pkg-config --static --libs "${packages[@]}")
+read -ra libraries <<<"${library_flags}"
 cpp_version=$(pkg-config --modversion parquet)
 
 # Copy every static archive into the package and keep only system libraries
@@ -165,8 +168,9 @@ int main() {
 }
 EOF
 # Resolve flags only from the staged package to prove it is self-contained.
-read -ra smoke_options <<<"$(PKG_CONFIG_PATH='' PKG_CONFIG_LIBDIR="${package_dir}/lib/pkgconfig" \
-  pkg-config --cflags --libs arrow-parquet)"
+smoke_flags=$(PKG_CONFIG_PATH='' PKG_CONFIG_LIBDIR="${package_dir}/lib/pkgconfig" \
+  pkg-config --cflags --libs arrow-parquet)
+read -ra smoke_options <<<"${smoke_flags}"
 "${cxx}" -std=c++20 "${smoke_dir}/smoke.cc" "${smoke_options[@]}" -o "${smoke_dir}/smoke"
 "${smoke_dir}/smoke"
 github_actions_group_end
