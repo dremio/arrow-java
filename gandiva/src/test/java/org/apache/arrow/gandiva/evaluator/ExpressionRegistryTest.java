@@ -16,11 +16,13 @@
  */
 package org.apache.arrow.gandiva.evaluator;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.collect.Lists;
 import java.util.Set;
 import org.apache.arrow.gandiva.exceptions.GandivaException;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +33,36 @@ public class ExpressionRegistryTest {
     Set<ArrowType> types = ExpressionRegistry.getInstance().getSupportedTypes();
     ArrowType.Int uint8 = new ArrowType.Int(8, false);
     assertTrue(types.contains(uint8));
+  }
+
+  @Test
+  public void testTimeTypesKeepBitWidth() throws GandivaException {
+    Set<ArrowType> types = ExpressionRegistry.getInstance().getSupportedTypes();
+    assertTrue(types.contains(new ArrowType.Time(TimeUnit.SECOND, 32)));
+    assertTrue(types.contains(new ArrowType.Time(TimeUnit.MILLISECOND, 32)));
+    assertTrue(types.contains(new ArrowType.Time(TimeUnit.MICROSECOND, 64)));
+    assertTrue(types.contains(new ArrowType.Time(TimeUnit.NANOSECOND, 64)));
+    // Time64 units used to be reported with a 32-bit width.
+    assertFalse(types.contains(new ArrowType.Time(TimeUnit.MICROSECOND, 32)));
+    assertFalse(types.contains(new ArrowType.Time(TimeUnit.NANOSECOND, 32)));
+  }
+
+  @Test
+  public void testTime64Functions() throws GandivaException {
+    // Time64 signatures are registered with MICROSECOND; NANOSECOND arguments match the
+    // same signature in Gandiva and are remapped at codegen time.
+    ArrowType.Time timeMicro = new ArrowType.Time(TimeUnit.MICROSECOND, 64);
+    ArrowType.Int int64 = new ArrowType.Int(64, true);
+    ArrowType.Bool bool = new ArrowType.Bool();
+    Set<FunctionSignature> functions = ExpressionRegistry.getInstance().getSupportedFunctions();
+    assertTrue(
+        functions.contains(
+            new FunctionSignature("extractHour", int64, Lists.newArrayList(timeMicro))));
+    assertTrue(
+        functions.contains(
+            new FunctionSignature("less_than", bool, Lists.newArrayList(timeMicro, timeMicro))));
+    assertTrue(
+        functions.contains(new FunctionSignature("isnull", bool, Lists.newArrayList(timeMicro))));
   }
 
   @Test
