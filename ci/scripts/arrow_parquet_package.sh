@@ -70,8 +70,22 @@ export PKG_CONFIG_PATH
 packages=(parquet arrow-compute)
 # Without an external dependency installation, Arrow bundles these into
 # libarrow_bundled_dependencies.a; probing would pick up unrelated host copies.
+# Even with one, skip each dependency Arrow bundled (e.g. simdjson on macOS,
+# where Homebrew's shared-only copy would otherwise be found).
 if [ -n "${dependency_pkgconfig_dir}" ]; then
-  for dependency in re2 thrift liblz4 libzstd libutf8proc simdjson; do
+  bundled_libs=""
+  arrow_config=$(find "${arrow_install_dir}" -type f -name ArrowConfig.cmake -print -quit)
+  if [ -n "${arrow_config}" ]; then
+    bundled_libs=$(sed -n 's/^set(ARROW_BUNDLED_STATIC_LIBS "\(.*\)")$/\1/p' "${arrow_config}")
+  fi
+  # <pkg-config module>:<Arrow bundled target>
+  for entry in re2:re2::re2 thrift:thrift liblz4:lz4_static \
+    libzstd:zstd::libzstd_static libutf8proc:utf8proc::utf8proc simdjson:simdjson; do
+    dependency=${entry%%:*}
+    bundled_target=${entry#*:}
+    if [[ ";${bundled_libs};" == *";${bundled_target};"* ]]; then
+      continue
+    fi
     if pkg-config --exists "${dependency}"; then
       packages+=("${dependency}")
     fi
