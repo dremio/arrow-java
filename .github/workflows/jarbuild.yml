@@ -377,7 +377,7 @@ jobs:
           path: jni-macos-${{ matrix.platform.arch }}.tar.gz
   binaries:
     name: Binaries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - jni-linux
       - jni-macos
@@ -498,7 +498,7 @@ jobs:
       matrix:
         os:
           - macos-latest
-          - ubuntu-latest
+          - ubuntu-24.04
     steps:
       - name: Set up Java
         uses: actions/setup-java@v5
