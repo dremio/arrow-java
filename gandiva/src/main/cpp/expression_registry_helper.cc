@@ -110,7 +110,7 @@ void ArrowToProtobuf(DataTypePtr type, gandiva::types::ExtGandivaType* gandiva_d
       break;
     }
     case arrow::Type::TIME64: {
-      gandiva_data_type->set_type(gandiva::types::GandivaType::TIME32);
+      gandiva_data_type->set_type(gandiva::types::GandivaType::TIME64);
       std::shared_ptr<arrow::Time64Type> cast_time_64_type =
           std::dynamic_pointer_cast<arrow::Time64Type>(type);
       arrow::TimeUnit::type unit = cast_time_64_type->unit();
