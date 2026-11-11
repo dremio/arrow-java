@@ -117,6 +117,13 @@ message AndNode {
   repeated TreeNode args = 1;
 }
 
+message CaseNode {
+  repeated TreeNode conditions = 1;
+  repeated TreeNode results = 2;
+  optional TreeNode elseNode = 3;
+  optional ExtGandivaType returnType = 4;
+}
+
 message OrNode {
   repeated TreeNode args = 1;
 }
@@ -168,6 +175,7 @@ message TreeNode {
   optional IfNode ifNode = 6;
   optional AndNode andNode = 7;
   optional OrNode orNode = 8;
+  optional CaseNode caseNode = 9;
 
   // literals
   optional NullNode nullNode = 11;

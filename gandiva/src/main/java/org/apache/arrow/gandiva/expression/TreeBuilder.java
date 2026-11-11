@@ -101,6 +101,12 @@ public class TreeBuilder {
     return new IfNode(condition, thenNode, elseNode, retType);
   }
 
+  /** Creates an ordered CASE expression with first-match semantics. */
+  public static TreeNode makeCase(
+      List<TreeNode> conditions, List<TreeNode> results, TreeNode elseNode, ArrowType retType) {
+    return new CaseNode(conditions, results, elseNode, retType);
+  }
+
   /**
    * Invoke this function to create a node representing an and-clause.
    *

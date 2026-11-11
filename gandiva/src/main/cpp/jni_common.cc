@@ -319,6 +319,19 @@ NodePtr ProtoTypeToIfNode(const gandiva::types::IfNode& node) {
   return TreeExprBuilder::MakeIf(cond, then_node, else_node, return_type);
 }
 
+NodePtr ProtoTypeToCaseNode(const gandiva::types::CaseNode& node) {
+  NodeVector conditions;
+  NodeVector results;
+  for (const auto&condition : node.conditions()) {
+    conditions.push_back(ProtoTypeToNode(condition));
+  }
+  for (const auto&result : node.results()) {
+    results.push_back(ProtoTypeToNode(result));
+  }
+  return TreeExprBuilder::MakeCase(conditions, results, ProtoTypeToNode(node.elsenode()),
+                                   ProtoTypeToDataType(node.returntype()));
+}
+
 NodePtr ProtoTypeToAndNode(const gandiva::types::AndNode& node) {
   NodeVector children;
 
@@ -434,6 +447,10 @@ NodePtr ProtoTypeToNode(const gandiva::types::TreeNode& node) {
 
   if (node.has_fnnode()) {
     return ProtoTypeToFnNode(node.fnnode());
+  }
+
+  if (node.has_casenode()) {
+    return ProtoTypeToCaseNode(node.casenode());
   }
 
   if (node.has_ifnode()) {
