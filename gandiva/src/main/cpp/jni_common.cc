@@ -601,9 +601,9 @@ void releaseProjectorInput(jbyteArray schema_arr, jbyte* schema_bytes,
   env->ReleaseByteArrayElements(exprs_arr, exprs_bytes, JNI_ABORT);
 }
 
-JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildProjector(
-    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray exprs_arr,
-    jint selection_vector_type, jlong configuration_id) {
+static jlong BuildProjector(JNIEnv* env, jbyteArray schema_arr, jbyteArray exprs_arr,
+                            jint selection_vector_type, jlong configuration_id,
+                            bool cache_only) {
   jlong module_id = 0LL;
   std::shared_ptr<Projector> projector;
   std::shared_ptr<ProjectorHolder> holder;
@@ -677,12 +677,20 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_build
       break;
   }
   // good to invoke the evaluator now
-  status = Projector::Make(schema_ptr, expr_vector, mode, config, &projector);
+  status =
+      cache_only
+          ? Projector::TryMakeFromCache(schema_ptr, expr_vector, mode, config, &projector)
+          : Projector::Make(schema_ptr, expr_vector, mode, config, &projector);
 
   if (!status.ok()) {
     ss << "Failed to make LLVM module due to " << status.message() << "\n";
     releaseProjectorInput(schema_arr, schema_bytes, exprs_arr, exprs_bytes, env);
     goto err_out;
+  }
+
+  if (projector == nullptr) {
+    releaseProjectorInput(schema_arr, schema_bytes, exprs_arr, exprs_bytes, env);
+    return 0;
   }
 
   // store the result in a map
@@ -695,6 +703,21 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_build
 err_out:
   env->ThrowNew(gandiva_exception_, ss.str().c_str());
   return module_id;
+}
+
+JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildProjector(
+    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray exprs_arr,
+    jint selection_vector_type, jlong configuration_id) {
+  return BuildProjector(env, schema_arr, exprs_arr, selection_vector_type,
+                        configuration_id, false);
+}
+
+JNIEXPORT jlong JNICALL
+Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildProjectorFromCache(
+    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray exprs_arr,
+    jint selection_vector_type, jlong configuration_id) {
+  return BuildProjector(env, schema_arr, exprs_arr, selection_vector_type,
+                        configuration_id, true);
 }
 
 ///
@@ -902,9 +925,8 @@ void releaseFilterInput(jbyteArray schema_arr, jbyte* schema_bytes,
   env->ReleaseByteArrayElements(condition_arr, condition_bytes, JNI_ABORT);
 }
 
-JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildFilter(
-    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray condition_arr,
-    jlong configuration_id) {
+static jlong BuildFilter(JNIEnv* env, jbyteArray schema_arr, jbyteArray condition_arr,
+                         jlong configuration_id, bool cache_only) {
   jlong module_id = 0LL;
   std::shared_ptr<Filter> filter;
   std::shared_ptr<FilterHolder> holder;
@@ -959,11 +981,18 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_build
   }
 
   // good to invoke the filter builder now
-  status = Filter::Make(schema_ptr, condition_ptr, config, &filter);
+  status = cache_only
+               ? Filter::TryMakeFromCache(schema_ptr, condition_ptr, config, &filter)
+               : Filter::Make(schema_ptr, condition_ptr, config, &filter);
   if (!status.ok()) {
     ss << "Failed to make LLVM module due to " << status.message() << "\n";
     releaseFilterInput(schema_arr, schema_bytes, condition_arr, condition_bytes, env);
     goto err_out;
+  }
+
+  if (filter == nullptr) {
+    releaseFilterInput(schema_arr, schema_bytes, condition_arr, condition_bytes, env);
+    return 0;
   }
 
   // store the result in a map
@@ -975,6 +1004,19 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_build
 err_out:
   env->ThrowNew(gandiva_exception_, ss.str().c_str());
   return module_id;
+}
+
+JNIEXPORT jlong JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildFilter(
+    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray condition_arr,
+    jlong configuration_id) {
+  return BuildFilter(env, schema_arr, condition_arr, configuration_id, false);
+}
+
+JNIEXPORT jlong JNICALL
+Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildFilterFromCache(
+    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray condition_arr,
+    jlong configuration_id) {
+  return BuildFilter(env, schema_arr, condition_arr, configuration_id, true);
 }
 
 JNIEXPORT jint JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_evaluateFilter(

@@ -36,6 +36,11 @@ public class JniWrapper {
    * @param configId Configuration to gandiva.
    * @return A moduleId that is passed to the evaluateProjector() and closeProjector() methods
    */
+  /** Returns zero on an object-cache miss without compiling. */
+  native long buildProjectorFromCache(
+      byte[] schemaBuf, byte[] exprListBuf, int selectionVectorType, long configId)
+      throws GandivaException;
+
   native long buildProjector(
       byte[] schemaBuf, byte[] exprListBuf, int selectionVectorType, long configId)
       throws GandivaException;
@@ -86,6 +91,10 @@ public class JniWrapper {
    * @param configId Configuration to gandiva.
    * @return A moduleId that is passed to the evaluateFilter() and closeFilter() methods
    */
+  /** Returns zero on an object-cache miss without compiling. */
+  native long buildFilterFromCache(byte[] schemaBuf, byte[] conditionBuf, long configId)
+      throws GandivaException;
+
   native long buildFilter(byte[] schemaBuf, byte[] conditionBuf, long configId)
       throws GandivaException;
 
