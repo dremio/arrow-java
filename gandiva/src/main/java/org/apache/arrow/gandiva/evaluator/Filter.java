@@ -18,7 +18,6 @@ package org.apache.arrow.gandiva.evaluator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import org.apache.arrow.gandiva.exceptions.EvaluatorClosedException;
 import org.apache.arrow.gandiva.exceptions.GandivaException;
 import org.apache.arrow.gandiva.expression.ArrowTypeHelper;
@@ -114,20 +113,6 @@ public class Filter {
    */
   public static Filter make(Schema schema, Condition condition, long configurationId)
       throws GandivaException {
-    return makeInternal(schema, condition, configurationId, false);
-  }
-
-  /** Constructs an evaluator from cached object code, without compiling on a miss. */
-  public static Optional<Filter> tryMakeFromCache(
-      Schema schema, Condition condition, ConfigurationBuilder.ConfigOptions options)
-      throws GandivaException {
-    return Optional.ofNullable(
-        makeInternal(schema, condition, JniLoader.getConfiguration(options), true));
-  }
-
-  private static Filter makeInternal(
-      Schema schema, Condition condition, long configurationId, boolean cacheOnly)
-      throws GandivaException {
     // Invoke the JNI layer to create the LLVM module representing the filter.
     GandivaTypes.Condition conditionBuf = condition.toProtobuf();
     GandivaTypes.Schema schemaBuf = ArrowTypeHelper.arrowSchemaToProtobuf(schema);
@@ -137,13 +122,7 @@ public class Filter {
     // No lock here, deliberately -- see the equivalent comment in Projector.make(). The
     // duplicate-LLVM-symbol race from GH-601 is fixed in Gandiva's native Filter::Make(), so this
     // no longer needs to be serialized.
-    long moduleId =
-        cacheOnly
-            ? wrapper.buildFilterFromCache(schemaBytes, conditionBytes, configurationId)
-            : wrapper.buildFilter(schemaBytes, conditionBytes, configurationId);
-    if (cacheOnly && moduleId == 0) {
-      return null;
-    }
+    long moduleId = wrapper.buildFilter(schemaBytes, conditionBytes, configurationId);
     logger.debug("Created module for the filter with id {}", moduleId);
     return new Filter(wrapper, moduleId, schema);
   }
