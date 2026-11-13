@@ -381,6 +381,38 @@ public class ProjectorTest extends BaseEvaluatorTest {
   }
 
   @Test
+  public void testFlatCaseBeyondProtobufRecursionLimit() throws Exception {
+    Field input = Field.nullable("a", int32);
+    TreeNode a = TreeBuilder.makeField(input);
+    List<TreeNode> conditions = new ArrayList<>();
+    List<TreeNode> results = new ArrayList<>();
+    int branches = 5000;
+    for (int i = 0; i < branches; i++) {
+      conditions.add(
+          TreeBuilder.makeFunction(
+              "equal", List.of(a, TreeBuilder.makeLiteral(i)), new ArrowType.Bool()));
+      results.add(TreeBuilder.makeLiteral(i + 10));
+    }
+    TreeNode node = TreeBuilder.makeCase(conditions, results, TreeBuilder.makeNull(int32), int32);
+    ExpressionTree expression = TreeBuilder.makeExpression(node, Field.nullable("out", int32));
+    Schema schema = new Schema(List.of(input));
+    Projector projector = Projector.make(schema, List.of(expression));
+    try (ArrowBuf validity = buf(new byte[] {(byte) 15});
+        ArrowBuf values = intBuf(new int[] {0, 2500, 4999, 5000, 0});
+        ArrowRecordBatch batch =
+            new ArrowRecordBatch(5, List.of(new ArrowFieldNode(5, 1)), List.of(validity, values));
+        IntVector output = new IntVector("out", allocator)) {
+      output.allocateNew(5);
+      projector.evaluate(batch, List.of(output));
+      assertEquals(List.of(10, 2510, 5009), List.of(output.get(0), output.get(1), output.get(2)));
+      assertTrue(output.isNull(3));
+      assertTrue(output.isNull(4));
+    } finally {
+      projector.close();
+    }
+  }
+
+  @Test
   public void testEvaluate() throws GandivaException, Exception {
     Field a = Field.nullable("a", int32);
     Field b = Field.nullable("b", int32);

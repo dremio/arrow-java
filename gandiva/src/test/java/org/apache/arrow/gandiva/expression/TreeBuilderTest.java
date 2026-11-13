@@ -18,8 +18,10 @@ package org.apache.arrow.gandiva.expression;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.protobuf.CodedInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +33,49 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.junit.jupiter.api.Test;
 
 public class TreeBuilderTest {
+
+  @Test
+  public void testFlatCaseSerialization() throws Exception {
+    ArrowType type = new ArrowType.Int(32, true);
+    List<TreeNode> conditions = new ArrayList<>();
+    List<TreeNode> results = new ArrayList<>();
+    GandivaTypes.CaseNode.Builder expected = GandivaTypes.CaseNode.newBuilder();
+    for (int i = 0; i < 5000; i++) {
+      TreeNode condition = TreeBuilder.makeLiteral(i % 2 == 0);
+      TreeNode result = TreeBuilder.makeLiteral(i);
+      conditions.add(condition);
+      results.add(result);
+      expected.addConditions(condition.toProtobuf());
+      expected.addResults(result.toProtobuf());
+    }
+    TreeNode fallback = TreeBuilder.makeNull(type);
+    TreeNode node = TreeBuilder.makeCase(conditions, results, fallback, type);
+    conditions.clear();
+    results.clear();
+    expected.setElseNode(fallback.toProtobuf());
+    expected.setReturnType(ArrowTypeHelper.arrowTypeToProtobuf(type));
+    GandivaTypes.TreeNode expectedTree =
+        GandivaTypes.TreeNode.newBuilder().setCaseNode(expected).build();
+    CodedInputStream input = CodedInputStream.newInstance(node.toProtobuf().toByteArray());
+    input.setRecursionLimit(8);
+    assertEquals(expectedTree, GandivaTypes.TreeNode.parseFrom(input));
+  }
+
+  @Test
+  public void testFlatCaseRejectsMismatchedArms() {
+    TreeNode fallback = TreeBuilder.makeLiteral(0);
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> TreeBuilder.makeCase(List.of(), List.of(), fallback, new ArrowType.Int(32, true)));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            TreeBuilder.makeCase(
+                List.of(TreeBuilder.makeLiteral(true)),
+                List.of(),
+                fallback,
+                new ArrowType.Int(32, true)));
+  }
 
   @Test
   public void testMakeLiteral() throws GandivaException {
