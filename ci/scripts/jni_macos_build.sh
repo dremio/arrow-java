@@ -163,6 +163,7 @@ cmake \
   -DCMAKE_INSTALL_PREFIX="${install_dir}" \
   -DCMAKE_UNITY_BUILD="${CMAKE_UNITY_BUILD}" \
   -DGTest_SOURCE=BUNDLED \
+  -Dlz4_SOURCE=BUNDLED \
   -Dsimdjson_SOURCE=BUNDLED \
   -Duriparser_SOURCE=BUNDLED \
   "${llvm_dir_arg}" \
@@ -209,6 +210,11 @@ if [ ${#protobuf_args[@]} -gt 0 ]; then
 elif [ -d "${build_dir}/cpp/_deps/protobuf-src" ]; then
   jni_cmake_args="${jni_cmake_args} -DProtobuf_ROOT=${build_dir}/cpp/_deps/protobuf-build"
   jni_cmake_args="${jni_cmake_args} -DProtobuf_SRC_ROOT_FOLDER=${build_dir}/cpp/_deps/protobuf-src"
+  # Protobuf 33+ headers include utf8_validity.h from the bundled utf8_range (upstream GH-1408).
+  utf8_range_include_dir="${build_dir}/cpp/_deps/protobuf-src/third_party/utf8_range"
+  if [ -f "${utf8_range_include_dir}/utf8_validity.h" ]; then
+    jni_cmake_args="${jni_cmake_args} -DARROW_JAVA_JNI_UTF8_RANGE_INCLUDE_DIR=${utf8_range_include_dir}"
+  fi
 elif [ -d "${build_dir}/cpp/protobuf_ep-install" ]; then
   jni_cmake_args="${jni_cmake_args} -DProtobuf_ROOT=${build_dir}/cpp/protobuf_ep-install"
 fi
