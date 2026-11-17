@@ -234,7 +234,8 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Protobuf 3.25.5.
+This binary artifact contains Protobuf 3.25.5 (protobuf-java and protobuf-java-util),
+and Protobuf 3.25.8, shaded in Apache Calcite Avatica.
 
 Copyright: Copyright 2008 Google Inc.  All rights reserved.
 Home page: https://protobuf.dev/
