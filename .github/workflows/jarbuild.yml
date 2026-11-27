@@ -29,9 +29,13 @@ on:
         required: true
         default: apache/arrow
       release_tag_name:
-        description: 'release tag name'
+        description: 'Release tag name, required for a prerelease'
         type: string
-        required: true
+        required: false
+      validation_only:
+        description: 'Build and verify workflow artifacts without creating a tag or prerelease'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.repository }}-${{ github.head_ref || github.sha }}-${{ github.workflow }}
@@ -57,6 +61,7 @@ jobs:
           echo "arrow_branch: ${{env.ARROW_BRANCH}}"
           echo "arrow_repo: ${{env.ARROW_REPO}}"
           echo "release_tag_name: ${{env.RELEASE_TAG_NAME}}"
+          echo "validation_only: ${{inputs.validation_only}}"
           echo "arrow-java branch: ${{github.ref_name}}"
           echo ""
           echo "Direct Links:"
@@ -69,17 +74,27 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: recursive
-      - name: Prepare for tag
+      - name: Set source archive version
+        env:
+          VALIDATION_ONLY: ${{ inputs.validation_only }}
         run: |
-          echo "${{env.RELEASE_TAG_NAME}}"
-          ver=$(echo ${{env.RELEASE_TAG_NAME}})
-          version=${ver%-rc*}
-          version=${version#v}
-          rc=${ver#*-rc}
+          if [ "$VALIDATION_ONLY" = true ]; then
+            version=$(python3 -c 'from xml.etree import ElementTree as ET; print(ET.parse("pom.xml").getroot().findtext("{*}version", ""))')
+            if [ -z "$version" ]; then
+              echo "::error::Could not read the Arrow Java version from pom.xml"
+              exit 1
+            fi
+          else
+            if [ -z "$RELEASE_TAG_NAME" ]; then
+              echo "::error::release_tag_name is required for a prerelease"
+              exit 1
+            fi
+            version=${RELEASE_TAG_NAME%-rc*}
+            version=${version#v}
+            echo "RC=${RELEASE_TAG_NAME#*-rc}" >> "${GITHUB_ENV}"
+          fi
           echo "VERSION=${version}" >> ${GITHUB_ENV}
           echo "VERSION=${version}"
-          echo "RC=${rc}" >> ${GITHUB_ENV}
-          echo "RC=${rc}"
       - name: Archive
         run: |
           id="apache-arrow-java-${VERSION}"
@@ -536,6 +551,7 @@ jobs:
           dev/release/verify_rc.sh "${version}" "${rc}"
   upload:
     name: Upload
+    if: ${{ !inputs.validation_only }}
     needs:
       - docs
       - verify
