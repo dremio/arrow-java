@@ -41,6 +41,16 @@ public class JniWrapper {
       byte[] schemaBuf, byte[] exprListBuf, int selectionVectorType, long configId)
       throws GandivaException;
 
+  /** Reports which configuration was last checked, including when the probe fails. */
+  native long buildProjectorFromCacheWithFallback(
+      byte[] schemaBuf,
+      byte[] exprListBuf,
+      int selectionVectorType,
+      long configId,
+      long fallbackConfigId,
+      boolean[] fallbackUsed)
+      throws GandivaException;
+
   native long buildProjector(
       byte[] schemaBuf, byte[] exprListBuf, int selectionVectorType, long configId)
       throws GandivaException;
@@ -93,6 +103,15 @@ public class JniWrapper {
    */
   /** Returns zero on an object-cache miss without compiling. */
   native long buildFilterFromCache(byte[] schemaBuf, byte[] conditionBuf, long configId)
+      throws GandivaException;
+
+  /** Reports which configuration was last checked, including when the probe fails. */
+  native long buildFilterFromCacheWithFallback(
+      byte[] schemaBuf,
+      byte[] conditionBuf,
+      long configId,
+      long fallbackConfigId,
+      boolean[] fallbackUsed)
       throws GandivaException;
 
   native long buildFilter(byte[] schemaBuf, byte[] conditionBuf, long configId)

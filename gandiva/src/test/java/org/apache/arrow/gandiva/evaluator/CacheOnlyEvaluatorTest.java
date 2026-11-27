@@ -16,6 +16,7 @@
  */
 package org.apache.arrow.gandiva.evaluator;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -40,11 +41,16 @@ class CacheOnlyEvaluatorTest extends BaseEvaluatorTest {
             Field.nullable("result", input.getType()));
     var o3 = new ConfigurationBuilder.ConfigOptions().withOptimize(true);
     var o0 = new ConfigurationBuilder.ConfigOptions().withOptimize(false);
+    assertTrue(Projector.tryMakeFromCacheWithFallback(schema, List.of(expr), o3, o0).isEmpty());
     assertTrue(Projector.tryMakeFromCache(schema, List.of(expr), o3).isEmpty());
     assertTrue(Projector.tryMakeFromCache(schema, List.of(expr), o3).isEmpty());
     var o0Evaluator = Projector.make(schema, List.of(expr), o0);
     try {
       assertTrue(Projector.tryMakeFromCache(schema, List.of(expr), o3).isEmpty());
+      var fallbackHit =
+          Projector.tryMakeFromCacheWithFallback(schema, List.of(expr), o3, o0).orElseThrow();
+      assertTrue(fallbackHit.isFallback());
+      fallbackHit.getEvaluator().close();
     } finally {
       o0Evaluator.close();
     }
@@ -53,6 +59,10 @@ class CacheOnlyEvaluatorTest extends BaseEvaluatorTest {
       var hit = Projector.tryMakeFromCache(schema, List.of(expr), o3);
       assertTrue(hit.isPresent());
       hit.orElseThrow().close();
+      var preferredHit =
+          Projector.tryMakeFromCacheWithFallback(schema, List.of(expr), o3, o0).orElseThrow();
+      assertFalse(preferredHit.isFallback());
+      preferredHit.getEvaluator().close();
       assertTrue(
           Projector.tryMakeFromCache(schema, List.of(expr), SelectionVectorType.SV_INT16, o3)
               .isEmpty());
@@ -79,11 +89,16 @@ class CacheOnlyEvaluatorTest extends BaseEvaluatorTest {
                 new ArrowType.Bool()));
     var o3 = new ConfigurationBuilder.ConfigOptions().withOptimize(true);
     var o0 = new ConfigurationBuilder.ConfigOptions().withOptimize(false);
+    assertTrue(Filter.tryMakeFromCacheWithFallback(schema, condition, o3, o0).isEmpty());
     assertTrue(Filter.tryMakeFromCache(schema, condition, o3).isEmpty());
     assertTrue(Filter.tryMakeFromCache(schema, condition, o3).isEmpty());
     var o0Evaluator = Filter.make(schema, condition, o0);
     try {
       assertTrue(Filter.tryMakeFromCache(schema, condition, o3).isEmpty());
+      var fallbackHit =
+          Filter.tryMakeFromCacheWithFallback(schema, condition, o3, o0).orElseThrow();
+      assertTrue(fallbackHit.isFallback());
+      fallbackHit.getEvaluator().close();
     } finally {
       o0Evaluator.close();
     }
@@ -92,6 +107,10 @@ class CacheOnlyEvaluatorTest extends BaseEvaluatorTest {
       var hit = Filter.tryMakeFromCache(schema, condition, o3);
       assertTrue(hit.isPresent());
       hit.orElseThrow().close();
+      var preferredHit =
+          Filter.tryMakeFromCacheWithFallback(schema, condition, o3, o0).orElseThrow();
+      assertFalse(preferredHit.isFallback());
+      preferredHit.getEvaluator().close();
     } finally {
       o3Evaluator.close();
     }

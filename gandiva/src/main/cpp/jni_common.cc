@@ -603,7 +603,8 @@ void releaseProjectorInput(jbyteArray schema_arr, jbyte* schema_bytes,
 
 static jlong BuildProjector(JNIEnv* env, jbyteArray schema_arr, jbyteArray exprs_arr,
                             jint selection_vector_type, jlong configuration_id,
-                            bool cache_only) {
+                            bool cache_only, jlong fallback_configuration_id = 0,
+                            jbooleanArray fallback_used = nullptr) {
   jlong module_id = 0LL;
   std::shared_ptr<Projector> projector;
   std::shared_ptr<ProjectorHolder> holder;
@@ -677,10 +678,23 @@ static jlong BuildProjector(JNIEnv* env, jbyteArray schema_arr, jbyteArray exprs
       break;
   }
   // good to invoke the evaluator now
-  status =
-      cache_only
-          ? Projector::TryMakeFromCache(schema_ptr, expr_vector, mode, config, &projector)
-          : Projector::Make(schema_ptr, expr_vector, mode, config, &projector);
+  if (fallback_used != nullptr) {
+    bool used_fallback = false;
+    status = Projector::TryMakeFromCacheWithFallback(
+        schema_ptr, expr_vector, mode, config,
+        ConfigHolder::MapLookup(fallback_configuration_id), &used_fallback, &projector);
+    jboolean flag = used_fallback ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(fallback_used, 0, 1, &flag);
+    if (env->ExceptionCheck()) {
+      releaseProjectorInput(schema_arr, schema_bytes, exprs_arr, exprs_bytes, env);
+      return 0;
+    }
+  } else {
+    status =
+        cache_only
+            ? Projector::TryMakeFromCache(schema_ptr, expr_vector, mode, config, &projector)
+            : Projector::Make(schema_ptr, expr_vector, mode, config, &projector);
+  }
 
   if (!status.ok()) {
     ss << "Failed to make LLVM module due to " << status.message() << "\n";
@@ -718,6 +732,16 @@ Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildProjectorFromCache(
     jint selection_vector_type, jlong configuration_id) {
   return BuildProjector(env, schema_arr, exprs_arr, selection_vector_type,
                         configuration_id, true);
+}
+
+JNIEXPORT jlong JNICALL
+Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildProjectorFromCacheWithFallback(
+    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray exprs_arr,
+    jint selection_vector_type, jlong configuration_id, jlong fallback_configuration_id,
+    jbooleanArray fallback_used) {
+  return BuildProjector(env, schema_arr, exprs_arr, selection_vector_type,
+                        configuration_id, true,
+                        fallback_configuration_id, fallback_used);
 }
 
 ///
@@ -926,7 +950,8 @@ void releaseFilterInput(jbyteArray schema_arr, jbyte* schema_bytes,
 }
 
 static jlong BuildFilter(JNIEnv* env, jbyteArray schema_arr, jbyteArray condition_arr,
-                         jlong configuration_id, bool cache_only) {
+                         jlong configuration_id, bool cache_only, jlong fallback_configuration_id = 0,
+                         jbooleanArray fallback_used = nullptr) {
   jlong module_id = 0LL;
   std::shared_ptr<Filter> filter;
   std::shared_ptr<FilterHolder> holder;
@@ -981,9 +1006,22 @@ static jlong BuildFilter(JNIEnv* env, jbyteArray schema_arr, jbyteArray conditio
   }
 
   // good to invoke the filter builder now
-  status = cache_only
-               ? Filter::TryMakeFromCache(schema_ptr, condition_ptr, config, &filter)
-               : Filter::Make(schema_ptr, condition_ptr, config, &filter);
+  if (fallback_used != nullptr) {
+    bool used_fallback = false;
+    status = Filter::TryMakeFromCacheWithFallback(
+        schema_ptr, condition_ptr, config,
+        ConfigHolder::MapLookup(fallback_configuration_id), &used_fallback, &filter);
+    jboolean flag = used_fallback ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(fallback_used, 0, 1, &flag);
+    if (env->ExceptionCheck()) {
+      releaseFilterInput(schema_arr, schema_bytes, condition_arr, condition_bytes, env);
+      return 0;
+    }
+  } else {
+    status = cache_only
+                 ? Filter::TryMakeFromCache(schema_ptr, condition_ptr, config, &filter)
+                 : Filter::Make(schema_ptr, condition_ptr, config, &filter);
+  }
   if (!status.ok()) {
     ss << "Failed to make LLVM module due to " << status.message() << "\n";
     releaseFilterInput(schema_arr, schema_bytes, condition_arr, condition_bytes, env);
@@ -1017,6 +1055,15 @@ Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildFilterFromCache(
     JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray condition_arr,
     jlong configuration_id) {
   return BuildFilter(env, schema_arr, condition_arr, configuration_id, true);
+}
+
+JNIEXPORT jlong JNICALL
+Java_org_apache_arrow_gandiva_evaluator_JniWrapper_buildFilterFromCacheWithFallback(
+    JNIEnv* env, jobject obj, jbyteArray schema_arr, jbyteArray condition_arr,
+    jlong configuration_id, jlong fallback_configuration_id,
+    jbooleanArray fallback_used) {
+  return BuildFilter(env, schema_arr, condition_arr, configuration_id, true,
+                        fallback_configuration_id, fallback_used);
 }
 
 JNIEXPORT jint JNICALL Java_org_apache_arrow_gandiva_evaluator_JniWrapper_evaluateFilter(
