@@ -38,9 +38,12 @@ class IdToModuleMap {
   }
 
   void Erase(jlong module_id) {
-    mtx_.lock();
-    map_.erase(module_id);
-    mtx_.unlock();
+    // Destruction can tear down an LLVM module. Release the map lock first.
+    typename decltype(map_)::node_type removed;
+    {
+      std::lock_guard<std::mutex> guard(mtx_);
+      removed = map_.extract(module_id);
+    }
   }
 
   HOLDER Lookup(jlong module_id) {

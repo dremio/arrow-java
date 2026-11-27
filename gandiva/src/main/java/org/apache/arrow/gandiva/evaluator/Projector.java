@@ -18,6 +18,8 @@ package org.apache.arrow.gandiva.evaluator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import org.apache.arrow.gandiva.exceptions.CacheProbeException;
 import org.apache.arrow.gandiva.exceptions.EvaluatorClosedException;
 import org.apache.arrow.gandiva.exceptions.GandivaException;
 import org.apache.arrow.gandiva.exceptions.UnsupportedTypeException;
@@ -194,6 +196,90 @@ public class Projector {
       SelectionVectorType selectionVectorType,
       long configurationId)
       throws GandivaException {
+    return makeInternal(schema, exprs, selectionVectorType, configurationId, false);
+  }
+
+  /** Constructs an evaluator from cached object code, without compiling on a miss. */
+  public static Optional<Projector> tryMakeFromCache(
+      Schema schema, List<ExpressionTree> exprs, ConfigurationBuilder.ConfigOptions options)
+      throws GandivaException {
+    return tryMakeFromCache(schema, exprs, SelectionVectorType.SV_NONE, options);
+  }
+
+  /** Constructs a cached evaluator for the specified selection-vector mode. */
+  public static Optional<Projector> tryMakeFromCache(
+      Schema schema,
+      List<ExpressionTree> exprs,
+      SelectionVectorType selectionVectorType,
+      ConfigurationBuilder.ConfigOptions options)
+      throws GandivaException {
+    return Optional.ofNullable(
+        makeInternal(
+            schema, exprs, selectionVectorType, JniLoader.getConfiguration(options), true));
+  }
+
+  /** Checks preferred and fallback configurations for a projector without a selection vector. */
+  public static Optional<CacheHit<Projector>> tryMakeFromCacheWithFallback(
+      Schema schema,
+      List<ExpressionTree> exprs,
+      ConfigurationBuilder.ConfigOptions preferred,
+      ConfigurationBuilder.ConfigOptions fallback)
+      throws GandivaException {
+    return tryMakeFromCacheWithFallback(
+        schema, exprs, SelectionVectorType.SV_NONE, preferred, fallback);
+  }
+
+  /**
+   * Checks the preferred configuration, then the fallback after a miss, without compiling.
+   *
+   * @return the cached evaluator and its configuration, or empty if both probes miss
+   * @throws CacheProbeException when cache lookup fails
+   */
+  public static Optional<CacheHit<Projector>> tryMakeFromCacheWithFallback(
+      Schema schema,
+      List<ExpressionTree> exprs,
+      SelectionVectorType selectionVectorType,
+      ConfigurationBuilder.ConfigOptions preferred,
+      ConfigurationBuilder.ConfigOptions fallback)
+      throws GandivaException {
+    boolean[] fallbackUsed = {false};
+    try {
+      Projector evaluator =
+          makeInternal(
+              schema,
+              exprs,
+              selectionVectorType,
+              JniLoader.getConfiguration(preferred),
+              true,
+              JniLoader.getConfiguration(fallback),
+              fallbackUsed);
+      return evaluator == null
+          ? Optional.empty()
+          : Optional.of(new CacheHit<>(evaluator, fallbackUsed[0]));
+    } catch (GandivaException failure) {
+      throw new CacheProbeException(fallbackUsed[0], failure);
+    }
+  }
+
+  private static Projector makeInternal(
+      Schema schema,
+      List<ExpressionTree> exprs,
+      SelectionVectorType selectionVectorType,
+      long configurationId,
+      boolean cacheOnly)
+      throws GandivaException {
+    return makeInternal(schema, exprs, selectionVectorType, configurationId, cacheOnly, 0, null);
+  }
+
+  private static Projector makeInternal(
+      Schema schema,
+      List<ExpressionTree> exprs,
+      SelectionVectorType selectionVectorType,
+      long configurationId,
+      boolean cacheOnly,
+      long fallbackConfigurationId,
+      boolean[] fallbackUsed)
+      throws GandivaException {
     // serialize the schema and the list of expressions as a protobuf
     GandivaTypes.ExpressionList.Builder builder = GandivaTypes.ExpressionList.newBuilder();
     for (ExpressionTree expr : exprs) {
@@ -212,9 +298,27 @@ public class Projector {
     // fixed in Gandiva itself -- see "GH-601: Fix TOCTOU race in Gandiva's LLVM object cache read"
     // in the arrow C++ tree. Concurrent buildProjector() calls are safe against a Gandiva that
     // contains that fix; do not re-add a lock here without first checking the native side.
-    long moduleId =
-        wrapper.buildProjector(
-            schemaBytes, exprBytes, selectionVectorType.getNumber(), configurationId);
+    long moduleId;
+    if (fallbackUsed != null) {
+      moduleId =
+          wrapper.buildProjectorFromCacheWithFallback(
+              schemaBytes,
+              exprBytes,
+              selectionVectorType.getNumber(),
+              configurationId,
+              fallbackConfigurationId,
+              fallbackUsed);
+    } else {
+      moduleId =
+          cacheOnly
+              ? wrapper.buildProjectorFromCache(
+                  schemaBytes, exprBytes, selectionVectorType.getNumber(), configurationId)
+              : wrapper.buildProjector(
+                  schemaBytes, exprBytes, selectionVectorType.getNumber(), configurationId);
+    }
+    if (cacheOnly && moduleId == 0) {
+      return null;
+    }
     logger.debug("Created module for the projector with id {}", moduleId);
     return new Projector(wrapper, moduleId, schema, exprs.size());
   }

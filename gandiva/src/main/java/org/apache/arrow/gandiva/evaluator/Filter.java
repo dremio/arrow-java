@@ -18,6 +18,8 @@ package org.apache.arrow.gandiva.evaluator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import org.apache.arrow.gandiva.exceptions.CacheProbeException;
 import org.apache.arrow.gandiva.exceptions.EvaluatorClosedException;
 import org.apache.arrow.gandiva.exceptions.GandivaException;
 import org.apache.arrow.gandiva.expression.ArrowTypeHelper;
@@ -113,6 +115,61 @@ public class Filter {
    */
   public static Filter make(Schema schema, Condition condition, long configurationId)
       throws GandivaException {
+    return makeInternal(schema, condition, configurationId, false);
+  }
+
+  /** Constructs an evaluator from cached object code, without compiling on a miss. */
+  public static Optional<Filter> tryMakeFromCache(
+      Schema schema, Condition condition, ConfigurationBuilder.ConfigOptions options)
+      throws GandivaException {
+    return Optional.ofNullable(
+        makeInternal(schema, condition, JniLoader.getConfiguration(options), true));
+  }
+
+  /**
+   * Checks the preferred configuration, then the fallback after a miss, without compiling.
+   *
+   * @return the cached evaluator and its configuration, or empty if both probes miss
+   * @throws CacheProbeException when cache lookup fails
+   */
+  public static Optional<CacheHit<Filter>> tryMakeFromCacheWithFallback(
+      Schema schema,
+      Condition condition,
+      ConfigurationBuilder.ConfigOptions preferred,
+      ConfigurationBuilder.ConfigOptions fallback)
+      throws GandivaException {
+    boolean[] fallbackUsed = {false};
+    try {
+      Filter evaluator =
+          makeInternal(
+              schema,
+              condition,
+              JniLoader.getConfiguration(preferred),
+              true,
+              JniLoader.getConfiguration(fallback),
+              fallbackUsed);
+      return evaluator == null
+          ? Optional.empty()
+          : Optional.of(new CacheHit<>(evaluator, fallbackUsed[0]));
+    } catch (GandivaException failure) {
+      throw new CacheProbeException(fallbackUsed[0], failure);
+    }
+  }
+
+  private static Filter makeInternal(
+      Schema schema, Condition condition, long configurationId, boolean cacheOnly)
+      throws GandivaException {
+    return makeInternal(schema, condition, configurationId, cacheOnly, 0, null);
+  }
+
+  private static Filter makeInternal(
+      Schema schema,
+      Condition condition,
+      long configurationId,
+      boolean cacheOnly,
+      long fallbackConfigurationId,
+      boolean[] fallbackUsed)
+      throws GandivaException {
     // Invoke the JNI layer to create the LLVM module representing the filter.
     GandivaTypes.Condition conditionBuf = condition.toProtobuf();
     GandivaTypes.Schema schemaBuf = ArrowTypeHelper.arrowSchemaToProtobuf(schema);
@@ -122,7 +179,20 @@ public class Filter {
     // No lock here, deliberately -- see the equivalent comment in Projector.make(). The
     // duplicate-LLVM-symbol race from GH-601 is fixed in Gandiva's native Filter::Make(), so this
     // no longer needs to be serialized.
-    long moduleId = wrapper.buildFilter(schemaBytes, conditionBytes, configurationId);
+    long moduleId;
+    if (fallbackUsed != null) {
+      moduleId =
+          wrapper.buildFilterFromCacheWithFallback(
+              schemaBytes, conditionBytes, configurationId, fallbackConfigurationId, fallbackUsed);
+    } else {
+      moduleId =
+          cacheOnly
+              ? wrapper.buildFilterFromCache(schemaBytes, conditionBytes, configurationId)
+              : wrapper.buildFilter(schemaBytes, conditionBytes, configurationId);
+    }
+    if (cacheOnly && moduleId == 0) {
+      return null;
+    }
     logger.debug("Created module for the filter with id {}", moduleId);
     return new Filter(wrapper, moduleId, schema);
   }
